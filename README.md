@@ -14,8 +14,9 @@ A Flutter application for browsing and reading news articles. The app allows use
 
 ### Prerequisites
 
-- Flutter SDK (version 3.5.1 or later)
-- Dart SDK (version 3.5.1 or later)
+- Flutter SDK (version 3.24.0 or later)
+- Dart (version 3.5 or later)
+- Java (OpenJdk 22 or later)
 
 ### Installation
 
