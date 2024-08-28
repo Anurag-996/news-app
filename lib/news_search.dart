@@ -68,6 +68,7 @@ class __SearchResultsState extends State<_SearchResults> {
   bool _isLoading = false;
   final int _pageSize = 10;
   bool _hasInternet = true;
+  String? _errorMessage;
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   @override
@@ -75,12 +76,14 @@ class __SearchResultsState extends State<_SearchResults> {
     super.initState();
     _checkInternetConnectivity();
     _loadMore(); // Initial load when query is submitted
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+    _connectivitySubscription =
+        Connectivity().onConnectivityChanged.listen((result) {
       _checkInternetConnectivity(result);
     });
   }
 
-  Future<void> _checkInternetConnectivity([List<ConnectivityResult>? result]) async {
+  Future<void> _checkInternetConnectivity(
+      [List<ConnectivityResult>? result]) async {
     var connectivityResult = result ?? await Connectivity().checkConnectivity();
     setState(() {
       _hasInternet = !connectivityResult.contains(ConnectivityResult.none);
@@ -105,15 +108,36 @@ class __SearchResultsState extends State<_SearchResults> {
           children: [
             Icon(Icons.wifi_off, size: 60, color: Colors.grey),
             SizedBox(height: 20),
-            Text('No Internet Connection', style: TextStyle(fontSize: 16, color: Colors.grey)),
+            Text('No Internet Connection',
+                style: TextStyle(fontSize: 16, color: Colors.grey)),
           ],
         ),
       );
     }
 
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 60, color: Colors.red),
+            const SizedBox(height: 20),
+            Text(_errorMessage!,
+                style: const TextStyle(fontSize: 16, color: Colors.red)),
+          ],
+        ),
+      );
+    }
+
+    if (_articles.isEmpty && _isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return NotificationListener<ScrollNotification>(
       onNotification: (scrollInfo) {
-        if (!_isLoading && _hasMore && scrollInfo.metrics.pixels == scrollInfo.metrics.maxScrollExtent) {
+        if (!_isLoading &&
+            _hasMore &&
+            scrollInfo.metrics.pixels == scrollInfo.metrics.maxScrollExtent) {
           _loadMore();
         }
         return true;
@@ -155,6 +179,7 @@ class __SearchResultsState extends State<_SearchResults> {
         _articles.clear();
         _currentPage = 1;
         _hasMore = true;
+        _errorMessage = null;
         _loadMore();
       });
     }
@@ -178,6 +203,12 @@ class __SearchResultsState extends State<_SearchResults> {
     } catch (e) {
       setState(() {
         _isLoading = false;
+        if (e.toString().contains('Rate limit exceeded:')) {
+          // Replace this with your actual error check
+          _errorMessage = 'API limit reached. Please try again later.';
+        } else {
+          _errorMessage = 'Failed to load articles. Please try again later.';
+        }
       });
     }
   }

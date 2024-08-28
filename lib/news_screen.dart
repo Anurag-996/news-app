@@ -29,7 +29,8 @@ class _NewsScreenState extends State<NewsScreen> {
   List<Article> _articles = [];
   int _selectedIndex = 0;
   bool _hasInternet = true;
-  bool _rateLimited = false; // Add this variable to track rate limiting
+  bool _rateLimited = false;
+  String? _errorMessage; // Error message to display
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   final List<String> _categories = [
@@ -44,12 +45,13 @@ class _NewsScreenState extends State<NewsScreen> {
   void initState() {
     super.initState();
     _isDarkMode = widget.isDarkMode;
-    _checkInternetConnectivity(); // Check internet connectivity on startup
+    _checkInternetConnectivity();
     _scrollController = ScrollController()
       ..addListener(() {
         if (_scrollController.position.pixels ==
                 _scrollController.position.maxScrollExtent &&
-            _hasMore) {
+            _hasMore &&
+            _errorMessage == null) {
           _loadMoreNews();
         }
       });
@@ -63,38 +65,22 @@ class _NewsScreenState extends State<NewsScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
-    _connectivitySubscription
-        .cancel(); // Cancel the subscription when the widget is disposed
+    _connectivitySubscription.cancel();
     super.dispose();
   }
 
   Future<void> _checkInternetConnectivity(
       [List<ConnectivityResult>? result]) async {
-    // Get the current connectivity result
     var connectivityResult = result ?? await Connectivity().checkConnectivity();
 
-    // Set the state based on connectivity result
     setState(() {
-      if (connectivityResult.contains(ConnectivityResult.mobile)) {
-        // Mobile network available
+      if (connectivityResult.contains(ConnectivityResult.mobile) ||
+          connectivityResult.contains(ConnectivityResult.wifi) ||
+          connectivityResult.contains(ConnectivityResult.ethernet) ||
+          connectivityResult.contains(ConnectivityResult.vpn) ||
+          connectivityResult.contains(ConnectivityResult.other)) {
         _hasInternet = true;
-      } else if (connectivityResult.contains(ConnectivityResult.wifi)) {
-        // Wi-Fi is available
-        _hasInternet = true;
-      } else if (connectivityResult.contains(ConnectivityResult.ethernet)) {
-        // Ethernet connection available
-        _hasInternet = true;
-      } else if (connectivityResult.contains(ConnectivityResult.vpn)) {
-        // VPN connection active
-        _hasInternet = true;
-      } else if (connectivityResult.contains(ConnectivityResult.bluetooth)) {
-        // Bluetooth connection available
-        _hasInternet = false; // Usually Bluetooth does not provide internet
-      } else if (connectivityResult.contains(ConnectivityResult.other)) {
-        // Connected to a network which is not in the above mentioned networks
-        _hasInternet = true;
-      } else if (connectivityResult.contains(ConnectivityResult.none)) {
-        // No available network types
+      } else {
         _hasInternet = false;
       }
 
@@ -105,7 +91,7 @@ class _NewsScreenState extends State<NewsScreen> {
   }
 
   Future<void> _fetchNews() async {
-    if (!_hasInternet) return; // Do nothing if no internet
+    if (!_hasInternet) return;
 
     try {
       final newsResponse = await NewsService().fetchTopHeadlines(
@@ -116,21 +102,25 @@ class _NewsScreenState extends State<NewsScreen> {
       setState(() {
         _articles = newsResponse.articles;
         _hasMore = newsResponse.articles.length == 10;
+        _errorMessage = null; // Clear any previous error message
       });
     } catch (e) {
-      if (e.toString().contains('rateLimited')) {
-        setState(() {
+      setState(() {
+        if (e.toString().contains('Rate limit exceeded:')) {
           _rateLimited = true;
-        });
-      } else {
-        // Handle other errors if needed
-      }
+          _errorMessage =
+              'Rate limit reached. Please wait before making more requests.';
+        } else {
+          _errorMessage = 'An error occurred: $e';
+        }
+        _hasMore = false; // Prevent loading more when there's an error
+      });
     }
   }
 
   Future<void> _loadMoreNews() async {
     if (!_hasMore || !_hasInternet || _rateLimited) {
-      return; // Prevent further loading if no more items, no internet, or rate limited
+      return;
     }
 
     setState(() {
@@ -145,15 +135,19 @@ class _NewsScreenState extends State<NewsScreen> {
       setState(() {
         _articles.addAll(newsResponse.articles);
         _hasMore = newsResponse.articles.length == 10;
+        _errorMessage = null; // Clear any previous error message
       });
     } catch (e) {
-      if (e.toString().contains('rateLimited')) {
-        setState(() {
+      setState(() {
+        if (e.toString().contains('Rate limit exceeded:')) {
           _rateLimited = true;
-        });
-      } else {
-        // Handle other errors if needed
-      }
+          _errorMessage =
+              'Rate limit reached. Please wait before making more requests.';
+        } else {
+          _errorMessage = 'An error occurred: $e';
+        }
+        _hasMore = false; // Prevent loading more when there's an error
+      });
     }
   }
 
@@ -164,7 +158,8 @@ class _NewsScreenState extends State<NewsScreen> {
         _currentPage = 1;
         _hasMore = true;
         _articles.clear();
-        _rateLimited = false; // Reset rate limit on category change
+        _rateLimited = false;
+        _errorMessage = null; // Clear any previous error message
         _fetchNews();
       });
     }
@@ -224,9 +219,21 @@ class _NewsScreenState extends State<NewsScreen> {
         ],
       ),
       body: _hasInternet
-          ? Stack(
-              children: [
-                ListView.builder(
+          ? (_errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _isDarkMode ? Colors.white : Colors.black,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                )
+              : ListView.builder(
                   controller: _scrollController,
                   itemCount: _articles.length + 1,
                   itemBuilder: (context, index) {
@@ -291,21 +298,7 @@ class _NewsScreenState extends State<NewsScreen> {
                       ),
                     );
                   },
-                ),
-                if (_rateLimited)
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Container(
-                      color: Colors.red,
-                      padding: const EdgeInsets.all(8.0),
-                      child: const Text(
-                        'Rate limit reached. Please wait before making more requests.',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
-              ],
-            )
+                ))
           : Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -330,7 +323,7 @@ class _NewsScreenState extends State<NewsScreen> {
         type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        items: const <BottomNavigationBarItem>[
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.public),
             label: 'General',
