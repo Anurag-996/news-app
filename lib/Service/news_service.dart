@@ -32,7 +32,7 @@ class NewsService {
       return NewsResponse.fromJson(data);
     } else if (response.statusCode == 429) {
       final data = jsonDecode(response.body);
-      final message = data['message'] ?? 'Rate limit exceeded';
+      final message = data['message'] ?? 'API Limit Reached Try Again Later';
       throw Exception('Rate limit exceeded: $message');
     } else {
       throw Exception('Failed to load top headlines');
@@ -62,7 +62,7 @@ class NewsService {
       return NewsResponse.fromJson(data);
     } else if (response.statusCode == 429) {
       final data = jsonDecode(response.body);
-      final message = data['message'] ?? 'Rate limit exceeded';
+      final message = data['message'] ?? 'API Limit Reached Try Again Later';
       throw Exception('Rate limit exceeded: $message');
     } else {
       throw Exception('Failed to load search headlines');
