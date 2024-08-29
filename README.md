@@ -78,3 +78,17 @@ To securely manage sensitive information such as API keys, this project uses the
    ```bash
    flutter run
 2. Explore the different news categories, search for articles, and view article details.
+
+## Known Issues
+
+### Dart SDK Not Configured Error in Android Studio
+
+If you encounter the "Dart SDK not configured" error in Android Studio, you can resolve it by following these steps:
+
+**Invalidate Caches and Restart:**
+
+1. In Android Studio, go to `File` > `Invalidate Caches / Restart`.
+2. Click on "Invalidate and Restart" to refresh the project.
+
+This method has been effective in resolving the issue in Android Studio.
+
